@@ -1,0 +1,220 @@
+{
+	"visualizations": {
+		"viz_BUyYDHtG": {
+			"type": "splunk.table",
+			"title": "Raw LDAP",
+			"description": "Emulated lookup",
+			"dataSources": {
+				"primary": "ds_5eFDpvdY"
+			}
+		},
+		"viz_o87bQNuN": {
+			"type": "splunk.table",
+			"dataSources": {
+				"primary": "ds_3vgy7YX6"
+			},
+			"title": "Direct reports"
+		},
+		"viz_3d4DeM9H": {
+			"type": "splunk.table",
+			"dataSources": {
+				"primary": "ds_XpzPzDVj"
+			},
+			"title": "Report chain"
+		},
+		"viz_aZ6znV5O": {
+			"type": "splunk.image",
+			"options": {
+				"preserveAspectRatio": true,
+				"src": "https://cdn.pixabay.com/photo/2015/05/06/21/21/board-755789_1280.jpg"
+			}
+		}
+	},
+	"dataSources": {
+		"ds_5eFDpvdY": {
+			"type": "ds.search",
+			"options": {
+				"query": "| makeresults\n| eval _raw = \"\ncn      displayName      mail                    dn                        manager                                 \ndm123   Dean, Martin     dean.martin@test.eu     CN=dm123,OU=T,OU=E,OU=S   \nep123   Elvis, Presley   elvis.presley@test.eu   CN=ep123,OU=T,OU=E,OU=S   dm123\nmj123   Michael, Jordan  michael.jordan@test.eu  CN=mj123,OU=T,OU=E,OU=S   ep123\nbc123   Bill, Clinton    bill.clinton@test.eu    CN=bc123,OU=T,OU=E,OU=S   hc123\nba123   Buzz, Aldrin     buzz.aldrin@test.eu     CN=ba123,OU=T,OU=E,OU=S   mj123\nts123   Taylor, Swift    talor.swift@test.eu     CN=ts123,OU=T,OU=E,OU=S   ba123\nhc123   Hillary, Clinton hillary.clinton@tet.eu  CN=hs123,OU-T,OU=E,OU=S   dm123\"\n| multikv forceheader=1\n``` data emulation above for\n| inputlookup ldap_users ```\n| fields - _* linecount\n",
+				"queryParameters": {
+					"earliest": "-24h@h",
+					"latest": "now"
+				}
+			},
+			"name": "LDAP emulation"
+		},
+		"ds_y18jhshi": {
+			"type": "ds.chain",
+			"options": {
+				"query": "| eval flatdata = cn . \":\" . displayName . \":\" . if(isnull(manager), \"\", manager)\n| eventstats values(flatdata) as flatdata\n| foreach 1 2 3 4 5 6\n    [| eval manager = mvappend(manager, mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . mvindex(manager, -1) . \":\")), \":\"), 2))]\n``` managerial hierarchy  built above ```",
+				"extend": "ds_5eFDpvdY"
+			},
+			"name": "managerial hierachy"
+		},
+		"ds_3vgy7YX6": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_y18jhshi",
+				"query": "| eval manager = mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . mvindex(manager, 0) . \":\")), \":\"), 1)\n| search manager = \"$manager_tok$\"\n| stats values(displayName) as direct_reports dc(cn) as count by manager\n| search direct_reports = \"$displayName_tok$\"\n| eval manager = manager . \" (\" . count . \")\"\n| fields - count\n"
+			},
+			"name": "direct reports"
+		},
+		"ds_XpzPzDVj": {
+			"type": "ds.chain",
+			"options": {
+				"query": "| search displayName = \"$displayName_tok$\"\n| eval report_chain = mvappend(if(isnull(report_chain), null(), displayName), mvmap(manager, mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . manager . \":\")), \":\"), 1)))\n| search report_chain = \"$manager_tok$\"\n| eval displayName = displayName . \" \\-\" . mvcount(report_chain)\n| eval report_chain = \"^\" . mvjoin(report_chain, \"^\")\n| fields displayName report_chain",
+				"extend": "ds_y18jhshi"
+			},
+			"name": "report structure"
+		},
+		"ds_Br3ZVdCo": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_5eFDpvdY",
+				"query": "| eval jsondata = json_object(cn, json_object(\"displayName\", displayName, \"manager\", manager))\n| eventstats values(jsondata) as jsondata"
+			},
+			"name": "JSON data"
+		},
+		"ds_D98tZbQO": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_y18jhshi",
+				"query": "| eval manager = mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . mvindex(manager, 0) . \":\")), \":\"), 1)\n| stats count by manager\n"
+			},
+			"name": "managers"
+		},
+		"ds_nhDHfh2H": {
+			"type": "ds.chain",
+			"options": {
+				"extend": "ds_5eFDpvdY",
+				"query": "| where isnotnull(manager)"
+			},
+			"name": "underling"
+		}
+	},
+	"defaults": {
+		"dataSources": {
+			"ds.search": {
+				"options": {
+					"queryParameters": {
+						"latest": "$global_time.latest$",
+						"earliest": "$global_time.earliest$"
+					}
+				}
+			}
+		}
+	},
+	"inputs": {
+		"input_kjbDWxUn": {
+			"options": {
+				"items": ">frame(label, value) | prepend(formattedStatics) | objects()",
+				"token": "displayName_tok",
+				"defaultValue": "*"
+			},
+			"title": "Employee",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_nhDHfh2H"
+			},
+			"context": {
+				"formattedConfig": {
+					"number": {
+						"prefix": ""
+					}
+				},
+				"formattedStatics": ">statics | formatByType(formattedConfig)",
+				"statics": [
+					[
+						"All"
+					],
+					[
+						"*"
+					]
+				],
+				"label": ">primary | seriesByName(\"displayName\") | renameSeries(\"label\") | formatByType(formattedConfig)",
+				"value": ">primary | seriesByName(\"displayName\") | renameSeries(\"value\") | formatByType(formattedConfig)"
+			}
+		},
+		"input_9rCKtMdZ": {
+			"options": {
+				"items": ">frame(label, value) | prepend(formattedStatics) | objects()",
+				"token": "manager_tok",
+				"defaultValue": "*"
+			},
+			"title": "Manager",
+			"type": "input.dropdown",
+			"dataSources": {
+				"primary": "ds_D98tZbQO"
+			},
+			"context": {
+				"formattedConfig": {
+					"number": {
+						"prefix": ""
+					}
+				},
+				"formattedStatics": ">statics | formatByType(formattedConfig)",
+				"statics": [
+					[
+						"All"
+					],
+					[
+						"*"
+					]
+				],
+				"label": ">primary | seriesByName(\"manager\") | renameSeries(\"label\") | formatByType(formattedConfig)",
+				"value": ">primary | seriesByName(\"manager\") | renameSeries(\"value\") | formatByType(formattedConfig)"
+			}
+		}
+	},
+	"layout": {
+		"type": "absolute",
+		"options": {},
+		"structure": [
+			{
+				"item": "viz_aZ6znV5O",
+				"type": "block",
+				"position": {
+					"x": 100,
+					"y": 310,
+					"w": 710,
+					"h": 370
+				}
+			},
+			{
+				"item": "viz_BUyYDHtG",
+				"type": "block",
+				"position": {
+					"x": 30,
+					"y": 560,
+					"w": 840,
+					"h": 320
+				}
+			},
+			{
+				"item": "viz_o87bQNuN",
+				"type": "block",
+				"position": {
+					"x": 0,
+					"y": 0,
+					"w": 310,
+					"h": 350
+				}
+			},
+			{
+				"item": "viz_3d4DeM9H",
+				"type": "block",
+				"position": {
+					"x": 320,
+					"y": 0,
+					"w": 630,
+					"h": 350
+				}
+			}
+		],
+		"globalInputs": [
+			"input_9rCKtMdZ",
+			"input_kjbDWxUn"
+		]
+	},
+	"description": "",
+	"title": "Org Chart Demos"
+}
