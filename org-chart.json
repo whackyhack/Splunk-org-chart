@@ -45,7 +45,7 @@
 		"ds_y18jhshi": {
 			"type": "ds.chain",
 			"options": {
-				"query": "| eval flatdata = cn . \":\" . displayName . \":\" . if(isnull(manager), \"\", manager)\n| eventstats values(flatdata) as flatdata\n| foreach 1 2 3 4 5 6\n    [| eval manager = mvappend(manager, mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . mvindex(manager, -1) . \":\")), \":\"), 2))]\n``` managerial hierarchy  built above ```",
+				"query": "| eval flatdata = cn . \":\" . displayName . \":\" . if(isnull(manager), \"\", manager)\n| eventstats values(flatdata) as flatdata\n| eval depth = mvrange(0, $depth_tok$)\n| foreach depth mode=multivalue\n    [| eval manager = mvappend(manager, mvindex(split(mvindex(flatdata, mvfind(flatdata, \"^\" . mvindex(manager, -1) . \":\")), \":\"), 2))]\n``` managerial hierarchy  built above ```",
 				"extend": "ds_5eFDpvdY"
 			},
 			"name": "managerial hierachy"
@@ -163,6 +163,14 @@
 				"label": ">primary | seriesByName(\"manager\") | renameSeries(\"label\") | formatByType(formattedConfig)",
 				"value": ">primary | seriesByName(\"manager\") | renameSeries(\"value\") | formatByType(formattedConfig)"
 			}
+		},
+		"input_xMzv0MdD": {
+			"options": {
+				"defaultValue": 6,
+				"token": "depth_tok"
+			},
+			"title": "maximum depth",
+			"type": "input.number"
 		}
 	},
 	"layout": {
@@ -173,18 +181,18 @@
 				"item": "viz_aZ6znV5O",
 				"type": "block",
 				"position": {
-					"x": 100,
-					"y": 310,
-					"w": 710,
-					"h": 370
+					"x": 30,
+					"y": 290,
+					"w": 840,
+					"h": 590
 				}
 			},
 			{
 				"item": "viz_BUyYDHtG",
 				"type": "block",
 				"position": {
-					"x": 30,
-					"y": 560,
+					"x": 10,
+					"y": 580,
 					"w": 840,
 					"h": 320
 				}
@@ -212,9 +220,10 @@
 		],
 		"globalInputs": [
 			"input_9rCKtMdZ",
-			"input_kjbDWxUn"
+			"input_kjbDWxUn",
+			"input_xMzv0MdD"
 		]
 	},
-	"description": "",
+	"description": "These demos illustrate how to build commonly used org charts from flat, or \"normalized\" LDAP data.",
 	"title": "Org Chart Demos"
 }
