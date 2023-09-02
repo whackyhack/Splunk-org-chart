@@ -34,4 +34,4 @@ To examine the search used to get result, first select the inputs you want.
 icon ("Open in search") to examine the search behind.
 
 ## References
-[1] [Help needed with foreach query for LDAP user information][https://community.splunk.com/t5/Splunk-Search/Help-needed-with-foreach-query-for-LDAP-user-information/m-p/636254]
+[1] (Splunk Answers) [Help needed with foreach query for LDAP user information](https://community.splunk.com/t5/Splunk-Search/Help-needed-with-foreach-query-for-LDAP-user-information/m-p/636254)
